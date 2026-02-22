@@ -319,7 +319,14 @@ const handleAuth = async (e: React.FormEvent) => {
             <div key={record.id} className="bg-white p-4 rounded-2xl border flex justify-between items-center relative pr-12 shadow-sm border-gray-100">
               <button onClick={() => handleDelete(record.id)} className="absolute top-3 right-3 text-red-300 hover:text-red-500 text-xs font-bold">刪除</button>
               <div>
-                <p className="text-sm font-bold text-gray-700">{new Date(record.created_at).toLocaleDateString('zh-TW')}</p>
+                <p className="text-sm font-bold text-gray-700">{new Date(record.created_at).toLocaleString('zh-TW', { 
+  year: 'numeric', 
+  month: 'numeric', 
+  day: 'numeric', 
+  hour: '2-digit', 
+  minute: '2-digit',
+  hour12: false 
+})}</p>
                 <p className="text-xs text-gray-500 mt-1">
                   體重: <span className="text-blue-500 font-bold">{record.weight}</span>kg | 
                   腰圍: <span className="text-blue-500 font-bold">{record.waist || '--'}</span> | 
