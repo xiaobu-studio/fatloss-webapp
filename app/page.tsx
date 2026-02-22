@@ -68,18 +68,26 @@ export default function Home() {
   };
 
   const handleSave = async () => {
-    if (!weight) { alert("請輸入體重數字喔！"); return; } // 🌟 只有體重是必填
+    if (!weight) { alert("請輸入體重數字喔！"); return; } 
+    
+    // 🌟 判斷：如果是訪客，Email 存成 '訪客'，否則存入真實 Email
+    const currentEmail = user.is_anonymous ? '訪客' : user.email;
+
     const { error } = await supabase.from('daily_records').insert([{
       weight: parseFloat(weight),
       waist: waist ? parseFloat(waist) : null,
       body_fat: bodyFat ? parseFloat(bodyFat) : null,
       water_done: waterDone, fasting_done: fastingDone, exercise_done: exerciseDone,
-      user_id: user.id
+      user_id: user.id,
+      user_email: currentEmail // 🌟 新增這一行：把 Email 一起存進資料庫
     }]);
+
     if (!error) {
       alert("🎉 儲存成功！");
       setWeight(""); setWaist(""); setBodyFat(""); setWaterDone(false); setFastingDone(false); setExerciseDone(false);
       fetchHistory();
+    } else {
+      alert("儲存失敗：" + error.message);
     }
   };
 
