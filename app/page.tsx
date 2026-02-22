@@ -16,6 +16,10 @@ export default function Home() {
   const [exerciseDone, setExerciseDone] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
 
+  // 🌟 新增：減重目標的狀態管理
+  const [targetGoal, setTargetGoal] = useState<number>(5);
+  const [isEditingGoal, setIsEditingGoal] = useState(false);
+
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -36,12 +40,16 @@ export default function Home() {
   useEffect(() => {
     if (user) {
       fetchHistory();
+      // 🌟 新增：登入時，去瀏覽器記憶裡找他之前設定的目標
+      const savedGoal = localStorage.getItem(`goal_${user.id}`);
+      if (savedGoal) {
+        setTargetGoal(Number(savedGoal));
+      }
     } else {
       setHistory([]);
     }
   }, [user]);
 
-  // === 🌟 原本的信箱登入 / 註冊 ===
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSignUp) {
@@ -54,14 +62,10 @@ export default function Home() {
     }
   };
 
-  // === 🌟 新增：訪客登入魔法 ===
   const handleGuestLogin = async () => {
     const { error } = await supabase.auth.signInAnonymously();
-    if (error) {
-      alert("訪客登入失敗 😢：" + error.message);
-    } else {
-      alert("👻 成功以訪客身分進入！您可以開始試玩囉！");
-    }
+    if (error) alert("訪客登入失敗 😢：" + error.message);
+    else alert("👻 成功以訪客身分進入！您可以開始試玩囉！");
   };
 
   const handleLogout = async () => {
@@ -74,7 +78,7 @@ export default function Home() {
       .from('daily_records')
       .select('*')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false }); // 新的在最前面
     if (data) setHistory(data);
   };
 
@@ -107,6 +111,19 @@ export default function Home() {
     else fetchHistory();
   };
 
+  // 🌟 魔法計算：動態算出已減重量
+  let currentLoss = 0;
+  // 如果歷史紀錄大於等於 2 筆，就可以計算差值
+  if (history.length >= 2) {
+    const firstWeight = history[history.length - 1].weight; // 最舊的一筆 (陣列最後面)
+    const latestWeight = history[0].weight; // 最新的一筆 (陣列最前面)
+    currentLoss = parseFloat((firstWeight - latestWeight).toFixed(1)); // 取小數點第一位
+  }
+
+  // 🌟 魔法計算：算出進度條的百分比 (確保在 0% ~ 100% 之間)
+  let progressPercent = targetGoal > 0 ? (currentLoss / targetGoal) * 100 : 0;
+  progressPercent = Math.min(100, Math.max(0, progressPercent));
+
   if (authLoading) return <div className="min-h-screen flex items-center justify-center text-gray-500">系統載入中...</div>;
 
   // === 登入畫面 ===
@@ -130,26 +147,17 @@ export default function Home() {
               {isSignUp ? "註冊專屬帳號" : "登入我的帳號"}
             </button>
           </form>
-          
           <p className="text-center mt-6 text-sm text-gray-500">
             {isSignUp ? "已經有帳號了？" : "還沒有專屬帳號？"}
             <button onClick={() => setIsSignUp(!isSignUp)} className="text-blue-500 ml-1 font-bold hover:underline">
               {isSignUp ? "點此登入" : "點此註冊"}
             </button>
           </p>
-
-          {/* 🌟 新增：訪客登入區塊 */}
           <div className="mt-6 pt-6 border-t border-gray-100">
-            <button 
-              onClick={handleGuestLogin}
-              type="button" 
-              className="w-full bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors flex justify-center items-center space-x-2"
-            >
-              <span>👻</span>
-              <span>免註冊，以訪客身分試玩</span>
+            <button onClick={handleGuestLogin} type="button" className="w-full bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 transition-colors flex justify-center items-center space-x-2">
+              <span>👻</span><span>免註冊，以訪客身分試玩</span>
             </button>
           </div>
-
         </div>
       </main>
     );
@@ -160,25 +168,55 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50 flex flex-col items-center p-4 font-sans text-gray-800 pb-10">
       
       <div className="w-full max-w-md flex justify-between items-center mb-4 px-2">
-        {/* 🌟 新增：如果是匿名訪客，顯示「訪客」，否則顯示信箱 */}
-        <p className="text-sm text-gray-600 font-medium">
-          👤 {user.is_anonymous ? "訪客試玩中" : user.email}
-        </p>
-        <button onClick={handleLogout} className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1.5 px-3 rounded-lg font-bold transition-colors">
-          登出
-        </button>
+        <p className="text-sm text-gray-600 font-medium">👤 {user.is_anonymous ? "訪客試玩中" : user.email}</p>
+        <button onClick={handleLogout} className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1.5 px-3 rounded-lg font-bold transition-colors">登出</button>
       </div>
 
       <div className="w-full max-w-md bg-white rounded-3xl shadow-sm overflow-hidden flex flex-col mt-2">
+        {/* 🌟 修改：頂部目標區塊，加入編輯功能與動態進度 */}
         <div className="bg-blue-500 text-white p-6 rounded-b-3xl">
           <h1 className="text-2xl font-bold mb-1">專屬減重計畫 💪</h1>
-          <p className="text-blue-100 text-sm">終極目標：減重 5 公斤</p>
-          <div className="mt-4 bg-white/20 rounded-full h-3 w-full overflow-hidden">
-            <div className="bg-white h-full rounded-full w-1/5"></div>
+          
+          <div className="flex items-center text-blue-100 text-sm mt-1">
+            <span>終極目標：減重</span>
+            {isEditingGoal ? (
+              <input 
+                type="number" 
+                value={targetGoal} 
+                onChange={(e) => setTargetGoal(Number(e.target.value))}
+                onBlur={() => {
+                  setIsEditingGoal(false);
+                  localStorage.setItem(`goal_${user.id}`, targetGoal.toString()); // 存入記憶體
+                }}
+                autoFocus
+                className="w-14 mx-1 px-1 py-0.5 text-black rounded text-center outline-none"
+              />
+            ) : (
+              <span 
+                className="mx-1 font-bold text-white underline decoration-dashed cursor-pointer"
+                onClick={() => setIsEditingGoal(true)}
+                title="點擊修改目標"
+              >
+                {targetGoal}
+              </span>
+            )}
+            <span>公斤</span>
           </div>
-          <p className="text-right text-xs mt-1 text-blue-100">目前進度：1kg / 5kg</p>
+
+          {/* 動態進度條 */}
+          <div className="mt-4 bg-white/20 rounded-full h-3 w-full overflow-hidden">
+            <div 
+              className="bg-white h-full rounded-full transition-all duration-700 ease-out"
+              style={{ width: `${progressPercent}%` }}
+            ></div>
+          </div>
+          
+          <p className="text-right text-xs mt-1 text-blue-100 font-medium">
+            目前進度：{currentLoss > 0 ? currentLoss : 0}kg / {targetGoal}kg
+          </p>
         </div>
 
+        {/* 下方程式碼保持不變... */}
         <div className="p-6">
           <h2 className="font-bold text-lg mb-4 text-gray-700">✅ 今日習慣打卡</h2>
           <div className="space-y-3">
