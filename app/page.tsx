@@ -54,12 +54,26 @@ export default function Home() {
     if (data) setHistory(data);
   };
 
-  const handleAuth = async (e: React.FormEvent) => {
+const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     const { error } = isSignUp 
       ? await supabase.auth.signUp({ email, password })
       : await supabase.auth.signInWithPassword({ email, password });
-    if (error) alert("操作失敗：" + error.message);
+      
+    if (error) {
+      // 🌟 錯誤訊息中文化翻譯機
+      let errorMessage = error.message;
+      
+      if (errorMessage === "Invalid login credentials") {
+        errorMessage = "帳號或密碼錯誤，請檢查後再試一次！";
+      } else if (errorMessage === "User already registered") {
+        errorMessage = "這個信箱已經註冊過囉，請直接點擊下方登入！";
+      } else if (errorMessage.includes("Password should be at least 6 characters")) {
+        errorMessage = "密碼太短囉，請至少輸入 6 個字元！";
+      }
+      
+      alert("操作失敗 😢：" + errorMessage);
+    }
   };
 
   const handleGuestLogin = async () => {
