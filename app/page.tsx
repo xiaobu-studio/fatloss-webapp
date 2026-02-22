@@ -99,36 +99,92 @@ export default function Home() {
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center text-gray-400">系統載入中...</div>;
 
-  // === 1. 漂亮的登入畫面 (恢復圖二外觀) ===
+  // === 1. 品牌強化版登入畫面 ===
   if (!user) {
     return (
-      <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 font-sans">
-        <div className="w-full max-w-sm bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-          <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">{isSignUp ? "加入減重計畫 💪" : "歡迎回來 👋"}</h1>
-          <form onSubmit={handleAuth} className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Email 信箱</label>
-              <input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} required className="w-full border p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="your@email.com"/>
+      <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 font-sans text-gray-800">
+        
+        {/* 頂部品牌 Logo */}
+        <div className="flex items-center space-x-2 mb-8 opacity-80">
+          <div className="bg-blue-500 text-white p-1.5 rounded-lg shadow-sm">📖</div>
+          <span className="text-sm font-bold tracking-[0.2em] text-gray-500">
+            XiaoBu Studio | 小步學習
+          </span>
+        </div>
+
+        <div className="w-full max-w-sm bg-white rounded-[2.5rem] shadow-xl shadow-blue-500/5 border border-gray-100 overflow-hidden">
+          
+          {/* 頂部藍色裝飾條 */}
+          <div className="h-2 bg-blue-500 w-full"></div>
+
+          <div className="p-8">
+            {/* 🌟 優化 1：加入明確的產品類型文字 */}
+            <h1 className="text-2xl font-bold text-center mb-2 text-gray-800">
+              {isSignUp ? "開啟減重計畫 💪" : "歡迎回來 👋"}
+            </h1>
+            <p className="text-center text-sm text-gray-500 mb-8 leading-relaxed">
+              {isSignUp ? "加入專屬減重小管家，遇見更好的自己" : "今天也要繼續為減重目標努力喔！"}
+            </p>
+
+            <form onSubmit={handleAuth} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">Email 信箱</label>
+                <input 
+                  type="email" 
+                  value={email} 
+                  onChange={(e)=>setEmail(e.target.value)} 
+                  required 
+                  className="w-full border-gray-100 bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" 
+                  placeholder="your@email.com"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">安全密碼</label>
+                <input 
+                  type="password" 
+                  value={password} 
+                  onChange={(e)=>setPassword(e.target.value)} 
+                  required 
+                  className="w-full border-gray-100 bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" 
+                  placeholder="請輸入密碼"
+                />
+              </div>
+              <button type="submit" className="w-full bg-blue-500 text-white font-bold py-4 rounded-2xl hover:bg-blue-600 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20 mt-2">
+                {isSignUp ? "立即開啟計畫" : "進入減重計畫"}
+              </button>
+            </form>
+
+            <div className="flex items-center my-8">
+              <div className="flex-1 h-[1px] bg-gray-100"></div>
+              <span className="px-3 text-[10px] text-gray-300 font-bold uppercase tracking-widest">or</span>
+              <div className="flex-1 h-[1px] bg-gray-100"></div>
             </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">密碼</label>
-              <input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} required className="w-full border p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="至少 6 個字元"/>
-            </div>
-            <button type="submit" className="w-full bg-blue-500 text-white font-bold py-3 rounded-xl hover:bg-blue-600 transition-colors">
-              {isSignUp ? "註冊專屬帳號" : "登入我的帳號"}
+
+            <button 
+              onClick={handleGuestLogin} 
+              className="w-full bg-white text-gray-600 border border-gray-200 font-bold py-3.5 rounded-2xl hover:bg-gray-50 transition-all flex justify-center items-center space-x-2"
+            >
+              <span>👻</span>
+              <span className="text-sm">免註冊，以訪客身分試玩</span>
             </button>
-          </form>
-          <p className="text-center mt-6 text-sm text-gray-500">
-            {isSignUp ? "已經有帳號了？" : "還沒有專屬帳號？"}
-            <button onClick={() => setIsSignUp(!isSignUp)} className="text-blue-500 ml-1 font-bold">
-              {isSignUp ? "點此登入" : "點此註冊"}
-            </button>
-          </p>
-          <div className="mt-6 pt-6 border-t border-gray-100">
-            <button onClick={handleGuestLogin} className="w-full bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 flex justify-center items-center space-x-2">
-              <span>👻</span><span>免註冊，以訪客身分試玩</span>
-            </button>
+
+            <p className="text-center mt-8 text-xs text-gray-400">
+              {isSignUp ? "已經有帳號了？" : "還沒有專屬帳號？"}
+              <button onClick={() => setIsSignUp(!isSignUp)} className="text-blue-500 ml-1 font-bold hover:underline">
+                {isSignUp ? "點此登入" : "點此註冊"}
+              </button>
+            </p>
           </div>
+        </div>
+        
+        {/* 🌟 優化 2：補足完整的品牌與年份資訊 */}
+        <div className="mt-12 text-center space-y-1 opacity-30">
+           <p className="text-[10px] font-bold tracking-[0.2em] text-gray-600">
+             XiaoBu Studio | © 2026 小步學習
+           </p>
+           <p className="text-[10px] text-gray-500">
+             打造更好的數位學習生活
+           </p>
         </div>
       </main>
     );
