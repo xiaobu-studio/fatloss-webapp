@@ -1,56 +1,70 @@
 "use client";
-import { useState } from "react";
-// 引入我們剛剛寫好的對講機
+import { useState, useEffect } from "react";
 import { supabase } from '../lib/supabase';
 
 export default function Home() {
-  // 記錄使用者輸入的數據
   const [weight, setWeight] = useState("");
   const [waist, setWaist] = useState("");
-  
-  // 記錄三個習慣是否有打勾
   const [waterDone, setWaterDone] = useState(false);
   const [fastingDone, setFastingDone] = useState(false);
   const [exerciseDone, setExerciseDone] = useState(false);
 
-  // 當按下儲存按鈕時會執行的動作
+  // 🌟 新增：用來存放從資料庫抓下來的歷史紀錄
+  const [history, setHistory] = useState<any[]>([]);
+
+  // 🌟 新增：去資料庫抓資料的專屬函數
+  const fetchHistory = async () => {
+    const { data, error } = await supabase
+      .from('daily_records')
+      .select('*')
+      .order('created_at', { ascending: false }); // 照時間新到舊排序
+
+    if (data) {
+      setHistory(data);
+    }
+  };
+
+  // 🌟 新增：當網頁一打開（載入完成）時，就自動執行抓資料的函數
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
   const handleSave = async () => {
-    // 1. 防呆機制：檢查有沒有填寫體重
     if (!weight || !waist) {
       alert("請輸入體重和腰圍數字喔！");
       return;
     }
 
-    // 2. 透過對講機，把資料寫入 Supabase 的 daily_records 表格
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('daily_records')
       .insert([
         {
-          weight: parseFloat(weight),      // 體重
-          waist: parseFloat(waist),        // 腰圍
-          water_done: waterDone,           // 喝水打勾狀態
-          fasting_done: fastingDone,       // 斷食打勾狀態
-          exercise_done: exerciseDone      // 運動打勾狀態
+          weight: parseFloat(weight),
+          waist: parseFloat(waist),
+          water_done: waterDone,
+          fasting_done: fastingDone,
+          exercise_done: exerciseDone
         },
       ]);
 
-    // 3. 判斷是否成功
     if (error) {
       alert("儲存失敗 😢：" + error.message);
     } else {
       alert("🎉 儲存成功！今天的努力已經記錄到雲端囉！");
-      // 存檔成功後，把輸入框清空方便明天輸入
       setWeight("");
       setWaist("");
       setWaterDone(false);
       setFastingDone(false);
       setExerciseDone(false);
+      
+      // 🌟 新增：存檔成功後，立刻重新抓取一次最新資料，讓畫面自動更新！
+      fetchHistory();
     }
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 flex flex-col items-center p-4 font-sans text-gray-800">
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-sm overflow-hidden min-h-[85vh] flex flex-col mt-4">
+    <main className="min-h-screen bg-gray-50 flex flex-col items-center p-4 font-sans text-gray-800 pb-10">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-sm overflow-hidden flex flex-col mt-4">
         
         {/* 頂部：目標區塊 */}
         <div className="bg-blue-500 text-white p-6 rounded-b-3xl">
@@ -63,7 +77,7 @@ export default function Home() {
         </div>
 
         {/* 中間：每日習慣打卡 */}
-        <div className="p-6 flex-1">
+        <div className="p-6">
           <h2 className="font-bold text-lg mb-4 text-gray-700">✅ 今日習慣打卡</h2>
           <div className="space-y-3">
             <label className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl border border-gray-100 cursor-pointer">
@@ -85,37 +99,53 @@ export default function Home() {
           <div className="flex space-x-4">
             <div className="flex-1">
               <label className="block text-xs text-gray-500 mb-1">體重 (kg)</label>
-              <input 
-                type="number" 
-                className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="例如: 65.2"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-              />
+              <input type="number" className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如: 65.2" value={weight} onChange={(e) => setWeight(e.target.value)} />
             </div>
             <div className="flex-1">
               <label className="block text-xs text-gray-500 mb-1">腰圍 (cm)</label>
-              <input 
-                type="number" 
-                className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="例如: 80"
-                value={waist}
-                onChange={(e) => setWaist(e.target.value)}
-              />
+              <input type="number" className="w-full border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="例如: 80" value={waist} onChange={(e) => setWaist(e.target.value)} />
             </div>
           </div>
         </div>
 
-        {/* 底部：儲存按鈕 */}
-        <div className="p-6 border-t border-gray-100">
-          <button 
-            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 rounded-2xl transition-colors shadow-md shadow-blue-500/30"
-            onClick={handleSave}
-          >
+        {/* 儲存按鈕 */}
+        <div className="p-6 pt-0">
+          <button onClick={handleSave} className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 rounded-2xl transition-colors shadow-md shadow-blue-500/30">
             儲存今日紀錄
           </button>
         </div>
+      </div>
 
+      {/* 🌟 新增：歷史紀錄顯示區塊 */}
+      <div className="w-full max-w-md mt-6">
+        <h2 className="font-bold text-lg mb-4 text-gray-700 px-2">📖 歷史打卡紀錄</h2>
+        <div className="space-y-3">
+          {history.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-4">目前還沒有紀錄喔，趕快開始第一天的打卡吧！</p>
+          ) : (
+            history.map((record) => (
+              <div key={record.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
+                <div>
+                  {/* 顯示日期 */}
+                  <p className="text-sm font-bold text-gray-700">
+                    {new Date(record.created_at).toLocaleDateString('zh-TW')}
+                  </p>
+                  {/* 顯示體重與腰圍 */}
+                  <p className="text-xs text-gray-500 mt-1">
+                    體重: <span className="text-blue-500 font-bold">{record.weight}</span> kg | 
+                    腰圍: <span className="text-blue-500 font-bold">{record.waist}</span> cm
+                  </p>
+                </div>
+                {/* 顯示習慣達成小圖示 */}
+                <div className="flex space-x-2 text-lg">
+                  <span className={record.water_done ? "opacity-100" : "opacity-20 grayscale"}>💧</span>
+                  <span className={record.fasting_done ? "opacity-100" : "opacity-20 grayscale"}>⏳</span>
+                  <span className={record.exercise_done ? "opacity-100" : "opacity-20 grayscale"}>🏃‍♀️</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </main>
   );
