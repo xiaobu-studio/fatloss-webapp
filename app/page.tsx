@@ -16,9 +16,10 @@ export default function Home() {
   const [exerciseDone, setExerciseDone] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
 
-  // 🌟 新增：減重目標的狀態管理
   const [targetGoal, setTargetGoal] = useState<number>(5);
   const [isEditingGoal, setIsEditingGoal] = useState(false);
+  // 🌟 新增：一個暫存的目標值，讓使用者在彈出視窗修改時按「取消」還能恢復
+  const [tempGoal, setTempGoal] = useState<number>(5);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -40,7 +41,6 @@ export default function Home() {
   useEffect(() => {
     if (user) {
       fetchHistory();
-      // 🌟 新增：登入時，去瀏覽器記憶裡找他之前設定的目標
       const savedGoal = localStorage.getItem(`goal_${user.id}`);
       if (savedGoal) {
         setTargetGoal(Number(savedGoal));
@@ -78,7 +78,7 @@ export default function Home() {
       .from('daily_records')
       .select('*')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false }); // 新的在最前面
+      .order('created_at', { ascending: false });
     if (data) setHistory(data);
   };
 
@@ -111,22 +111,35 @@ export default function Home() {
     else fetchHistory();
   };
 
-  // 🌟 魔法計算：動態算出已減重量
+  // 🌟 開啟設定視窗時的準備動作
+  const openGoalModal = () => {
+    setTempGoal(targetGoal); // 把目前的目標放進暫存區
+    setIsEditingGoal(true);
+  };
+
+  // 🌟 儲存新目標的動作
+  const saveGoal = () => {
+    if (tempGoal <= 0) {
+      alert("目標必須大於 0 喔！");
+      return;
+    }
+    setTargetGoal(tempGoal);
+    localStorage.setItem(`goal_${user.id}`, tempGoal.toString());
+    setIsEditingGoal(false);
+  };
+
   let currentLoss = 0;
-  // 如果歷史紀錄大於等於 2 筆，就可以計算差值
   if (history.length >= 2) {
-    const firstWeight = history[history.length - 1].weight; // 最舊的一筆 (陣列最後面)
-    const latestWeight = history[0].weight; // 最新的一筆 (陣列最前面)
-    currentLoss = parseFloat((firstWeight - latestWeight).toFixed(1)); // 取小數點第一位
+    const firstWeight = history[history.length - 1].weight;
+    const latestWeight = history[0].weight;
+    currentLoss = parseFloat((firstWeight - latestWeight).toFixed(1));
   }
 
-  // 🌟 魔法計算：算出進度條的百分比 (確保在 0% ~ 100% 之間)
   let progressPercent = targetGoal > 0 ? (currentLoss / targetGoal) * 100 : 0;
   progressPercent = Math.min(100, Math.max(0, progressPercent));
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center text-gray-500">系統載入中...</div>;
 
-  // === 登入畫面 ===
   if (!user) {
     return (
       <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 font-sans">
@@ -163,60 +176,74 @@ export default function Home() {
     );
   }
 
-  // === 登入後的打卡畫面 ===
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center p-4 font-sans text-gray-800 pb-10">
       
+      {/* 🌟 新增：精美的彈出式視窗 (Modal) */}
+      {isEditingGoal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-opacity">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-in fade-in zoom-in duration-200">
+            <h3 className="text-xl font-bold text-gray-800 mb-2 text-center">🎯 設定減重目標</h3>
+            <p className="text-sm text-gray-500 text-center mb-6">設定一個合理的目標，一步一步達成！</p>
+            
+            <div className="flex items-center justify-center mb-8">
+              <input 
+                type="number" 
+                value={tempGoal} 
+                onChange={(e) => setTempGoal(Number(e.target.value))}
+                className="w-24 border-b-2 border-blue-500 p-2 text-4xl text-center font-bold text-blue-600 focus:outline-none bg-transparent"
+                autoFocus
+              />
+              <span className="text-gray-500 font-bold ml-2 mt-4 text-lg">公斤</span>
+            </div>
+
+            <div className="flex space-x-3">
+              <button 
+                onClick={() => setIsEditingGoal(false)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3.5 rounded-2xl font-bold transition-colors"
+              >
+                取消
+              </button>
+              <button 
+                onClick={saveGoal}
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3.5 rounded-2xl font-bold transition-colors shadow-md shadow-blue-500/30"
+              >
+                儲存目標
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="w-full max-w-md flex justify-between items-center mb-4 px-2">
         <p className="text-sm text-gray-600 font-medium">👤 {user.is_anonymous ? "訪客試玩中" : user.email}</p>
         <button onClick={handleLogout} className="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1.5 px-3 rounded-lg font-bold transition-colors">登出</button>
       </div>
 
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-sm overflow-hidden flex flex-col mt-2">
-        {/* 🌟 修改：頂部目標區塊，加入編輯功能與動態進度 */}
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-sm overflow-hidden flex flex-col mt-2 relative">
         <div className="bg-blue-500 text-white p-6 rounded-b-3xl">
-          <h1 className="text-2xl font-bold mb-1">專屬減重計畫 💪</h1>
+          <h1 className="text-2xl font-bold mb-3">專屬減重計畫 💪</h1>
           
-          <div className="flex items-center text-blue-100 text-sm mt-1">
-            <span>終極目標：減重</span>
-            {isEditingGoal ? (
-              <input 
-                type="number" 
-                value={targetGoal} 
-                onChange={(e) => setTargetGoal(Number(e.target.value))}
-                onBlur={() => {
-                  setIsEditingGoal(false);
-                  localStorage.setItem(`goal_${user.id}`, targetGoal.toString()); // 存入記憶體
-                }}
-                autoFocus
-                className="w-14 mx-1 px-1 py-0.5 text-black rounded text-center outline-none"
-              />
-            ) : (
-              <span 
-                className="mx-1 font-bold text-white underline decoration-dashed cursor-pointer"
-                onClick={() => setIsEditingGoal(true)}
-                title="點擊修改目標"
-              >
-                {targetGoal}
-              </span>
-            )}
-            <span>公斤</span>
-          </div>
+          {/* 🌟 修改：升級成好點擊的半透明按鈕 */}
+          <button 
+            onClick={openGoalModal}
+            className="flex items-center bg-white/20 hover:bg-white/30 transition-colors py-1.5 px-3 rounded-xl backdrop-blur-sm group"
+          >
+            <span className="text-sm font-medium">🎯 終極目標：{targetGoal} 公斤</span>
+            <span className="ml-2 text-xs opacity-70 group-hover:opacity-100">✏️</span>
+          </button>
 
-          {/* 動態進度條 */}
-          <div className="mt-4 bg-white/20 rounded-full h-3 w-full overflow-hidden">
+          <div className="mt-5 bg-white/20 rounded-full h-3 w-full overflow-hidden">
             <div 
               className="bg-white h-full rounded-full transition-all duration-700 ease-out"
               style={{ width: `${progressPercent}%` }}
             ></div>
           </div>
-          
-          <p className="text-right text-xs mt-1 text-blue-100 font-medium">
+          <p className="text-right text-xs mt-1.5 text-blue-100 font-medium">
             目前進度：{currentLoss > 0 ? currentLoss : 0}kg / {targetGoal}kg
           </p>
         </div>
 
-        {/* 下方程式碼保持不變... */}
         <div className="p-6">
           <h2 className="font-bold text-lg mb-4 text-gray-700">✅ 今日習慣打卡</h2>
           <div className="space-y-3">
