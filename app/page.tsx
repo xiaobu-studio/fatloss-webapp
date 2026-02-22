@@ -9,26 +9,48 @@ export default function Home() {
   const [fastingDone, setFastingDone] = useState(false);
   const [exerciseDone, setExerciseDone] = useState(false);
 
-  // 🌟 新增：用來存放從資料庫抓下來的歷史紀錄
   const [history, setHistory] = useState<any[]>([]);
 
-  // 🌟 新增：去資料庫抓資料的專屬函數
+  // 去資料庫抓資料的函數
   const fetchHistory = async () => {
     const { data, error } = await supabase
       .from('daily_records')
       .select('*')
-      .order('created_at', { ascending: false }); // 照時間新到舊排序
+      .order('created_at', { ascending: false });
 
     if (data) {
       setHistory(data);
     }
   };
 
-  // 🌟 新增：當網頁一打開（載入完成）時，就自動執行抓資料的函數
+  // 網頁載入時自動抓資料
   useEffect(() => {
     fetchHistory();
   }, []);
 
+  // 🌟 新增：刪除指定紀錄的函數
+  const handleDelete = async (id: number) => {
+    // 1. 防呆機制：跳出確認視窗，避免使用者誤按
+    const isConfirmed = window.confirm("確定要刪除這筆紀錄嗎？刪除後無法恢復喔！");
+    if (!isConfirmed) return;
+
+    // 2. 呼叫 Supabase 刪除資料 (條件是 id 要吻合)
+    const { error } = await supabase
+      .from('daily_records')
+      .delete()
+      .eq('id', id);
+
+    // 3. 處理結果
+    if (error) {
+      alert("刪除失敗 😢：" + error.message);
+    } else {
+      alert("🗑️ 紀錄已成功刪除！");
+      // 刪除成功後，重新抓取一次資料，讓畫面上的那張卡片消失
+      fetchHistory();
+    }
+  };
+
+  // 儲存資料的函數
   const handleSave = async () => {
     if (!weight || !waist) {
       alert("請輸入體重和腰圍數字喔！");
@@ -56,8 +78,6 @@ export default function Home() {
       setWaterDone(false);
       setFastingDone(false);
       setExerciseDone(false);
-      
-      // 🌟 新增：存檔成功後，立刻重新抓取一次最新資料，讓畫面自動更新！
       fetchHistory();
     }
   };
@@ -116,7 +136,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 🌟 新增：歷史紀錄顯示區塊 */}
+      {/* 歷史紀錄顯示區塊 */}
       <div className="w-full max-w-md mt-6">
         <h2 className="font-bold text-lg mb-4 text-gray-700 px-2">📖 歷史打卡紀錄</h2>
         <div className="space-y-3">
@@ -124,19 +144,28 @@ export default function Home() {
             <p className="text-center text-gray-400 text-sm py-4">目前還沒有紀錄喔，趕快開始第一天的打卡吧！</p>
           ) : (
             history.map((record) => (
-              <div key={record.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center">
+              // 🌟 修改：加入 relative 屬性，讓刪除按鈕可以定位在右上角
+              <div key={record.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center relative pr-12">
+                
+                {/* 🌟 新增：右上角的刪除按鈕 */}
+                <button 
+                  onClick={() => handleDelete(record.id)}
+                  className="absolute top-3 right-3 text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors text-xs font-bold"
+                  title="刪除此紀錄"
+                >
+                  刪除
+                </button>
+
                 <div>
-                  {/* 顯示日期 */}
                   <p className="text-sm font-bold text-gray-700">
                     {new Date(record.created_at).toLocaleDateString('zh-TW')}
                   </p>
-                  {/* 顯示體重與腰圍 */}
                   <p className="text-xs text-gray-500 mt-1">
                     體重: <span className="text-blue-500 font-bold">{record.weight}</span> kg | 
                     腰圍: <span className="text-blue-500 font-bold">{record.waist}</span> cm
                   </p>
                 </div>
-                {/* 顯示習慣達成小圖示 */}
+                
                 <div className="flex space-x-2 text-lg">
                   <span className={record.water_done ? "opacity-100" : "opacity-20 grayscale"}>💧</span>
                   <span className={record.fasting_done ? "opacity-100" : "opacity-20 grayscale"}>⏳</span>
