@@ -54,16 +54,16 @@ export default function Home() {
     if (data) setHistory(data);
   };
 
-const handleAuth = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = isSignUp 
+    const { error } = isSignUp
       ? await supabase.auth.signUp({ email, password })
       : await supabase.auth.signInWithPassword({ email, password });
-      
+
     if (error) {
       // 🌟 錯誤訊息中文化翻譯機
       let errorMessage = error.message;
-      
+
       if (errorMessage === "Invalid login credentials") {
         errorMessage = "帳號或密碼錯誤，請檢查後再試一次！";
       } else if (errorMessage === "User already registered") {
@@ -71,7 +71,7 @@ const handleAuth = async (e: React.FormEvent) => {
       } else if (errorMessage.includes("Password should be at least 6 characters")) {
         errorMessage = "密碼太短囉，請至少輸入 6 個字元！";
       }
-      
+
       alert("操作失敗 😢：" + errorMessage);
     }
   };
@@ -82,8 +82,8 @@ const handleAuth = async (e: React.FormEvent) => {
   };
 
   const handleSave = async () => {
-    if (!weight) { alert("請輸入體重數字喔！"); return; } 
-    
+    if (!weight) { alert("請輸入體重數字喔！"); return; }
+
     // 🌟 判斷：如果是訪客，Email 存成 '訪客'，否則存入真實 Email
     const currentEmail = user.is_anonymous ? '訪客' : user.email;
 
@@ -111,11 +111,22 @@ const handleAuth = async (e: React.FormEvent) => {
     if (!error) fetchHistory();
   };
 
-  // 數據處理
-  const chartData = [...history].reverse().map(item => ({
-    date: new Date(item.created_at).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' }),
-    weight: item.weight
+  // 數據處理 (優化版：每天只顯示最新一筆體重)
+  const groupedData: Record<string, number> = {};
+
+  [...history].reverse().forEach(record => {
+    const dateLabel = new Date(record.created_at).toLocaleDateString('zh-TW', {
+      month: 'numeric',
+      day: 'numeric'
+    });
+    groupedData[dateLabel] = record.weight; // 同一天的紀錄，後面的會自動蓋掉前面的
+  });
+
+  const chartData = Object.keys(groupedData).map(date => ({
+    date: date,
+    weight: groupedData[date]
   }));
+
   let currentLoss = history.length >= 2 ? parseFloat((history[history.length - 1].weight - history[0].weight).toFixed(1)) : 0;
   let progressPercent = Math.min(100, Math.max(0, targetGoal > 0 ? (currentLoss / targetGoal) * 100 : 0));
 
@@ -125,7 +136,7 @@ const handleAuth = async (e: React.FormEvent) => {
   if (!user) {
     return (
       <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 font-sans text-gray-800">
-        
+
         {/* 頂部品牌 Logo */}
         <div className="flex items-center space-x-2 mb-8 opacity-80">
           <div className="bg-blue-500 text-white p-1.5 rounded-lg shadow-sm">📖</div>
@@ -135,7 +146,7 @@ const handleAuth = async (e: React.FormEvent) => {
         </div>
 
         <div className="w-full max-w-sm bg-white rounded-[2.5rem] shadow-xl shadow-blue-500/5 border border-gray-100 overflow-hidden">
-          
+
           {/* 頂部藍色裝飾條 */}
           <div className="h-2 bg-blue-500 w-full"></div>
 
@@ -151,23 +162,23 @@ const handleAuth = async (e: React.FormEvent) => {
             <form onSubmit={handleAuth} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">Email 信箱</label>
-                <input 
-                  type="email" 
-                  value={email} 
-                  onChange={(e)=>setEmail(e.target.value)} 
-                  required 
-                  className="w-full border-gray-100 bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" 
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full border-gray-100 bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                   placeholder="your@email.com"
                 />
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">安全密碼</label>
-                <input 
-                  type="password" 
-                  value={password} 
-                  onChange={(e)=>setPassword(e.target.value)} 
-                  required 
-                  className="w-full border-gray-100 bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" 
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full border-gray-100 bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                   placeholder="請輸入密碼"
                 />
               </div>
@@ -182,8 +193,8 @@ const handleAuth = async (e: React.FormEvent) => {
               <div className="flex-1 h-[1px] bg-gray-100"></div>
             </div>
 
-            <button 
-              onClick={handleGuestLogin} 
+            <button
+              onClick={handleGuestLogin}
               className="w-full bg-white text-gray-600 border border-gray-200 font-bold py-3.5 rounded-2xl hover:bg-gray-50 transition-all flex justify-center items-center space-x-2"
             >
               <span>👻</span>
@@ -198,15 +209,15 @@ const handleAuth = async (e: React.FormEvent) => {
             </p>
           </div>
         </div>
-        
+
         {/* 🌟 優化 2：補足完整的品牌與年份資訊 */}
         <div className="mt-12 text-center space-y-1 opacity-30">
-           <p className="text-[10px] font-bold tracking-[0.2em] text-gray-600">
-             XiaoBu Studio | © 2026 小步學習
-           </p>
-           <p className="text-[10px] text-gray-500">
-             打造更好的數位學習生活
-           </p>
+          <p className="text-[10px] font-bold tracking-[0.2em] text-gray-600">
+            XiaoBu Studio | © 2026 小步學習
+          </p>
+          <p className="text-[10px] text-gray-500">
+            打造更好的數位學習生活
+          </p>
         </div>
       </main>
     );
@@ -215,14 +226,14 @@ const handleAuth = async (e: React.FormEvent) => {
   // === 2. 主打卡畫面 ===
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center p-4 font-sans text-gray-800 pb-10">
-      
+
       {/* 目標設定 Modal */}
       {isEditingGoal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
             <h3 className="text-xl font-bold text-center mb-6">🎯 設定減重目標</h3>
             <div className="flex items-center justify-center mb-8">
-              <input type="number" value={tempGoal} onChange={(e)=>setTempGoal(Number(e.target.value))} className="w-24 border-b-2 border-blue-500 p-2 text-4xl text-center font-bold text-blue-600 outline-none bg-transparent" autoFocus />
+              <input type="number" value={tempGoal} onChange={(e) => setTempGoal(Number(e.target.value))} className="w-24 border-b-2 border-blue-500 p-2 text-4xl text-center font-bold text-blue-600 outline-none bg-transparent" autoFocus />
               <span className="text-gray-500 font-bold ml-2 mt-4 text-lg">公斤</span>
             </div>
             <div className="flex space-x-3">
@@ -262,7 +273,14 @@ const handleAuth = async (e: React.FormEvent) => {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="date" fontSize={10} tickLine={false} axisLine={false} />
+                  <XAxis
+                    dataKey="date"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    padding={{ left: 20, right: 20 }}
+                    interval="preserveStartEnd"
+                  />
                   <YAxis hide domain={['dataMin - 1', 'dataMax + 1']} />
                   <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                   <Line type="monotone" dataKey="weight" stroke="#3b82f6" strokeWidth={3} dot={{ fill: '#3b82f6', r: 4 }} activeDot={{ r: 6 }} />
@@ -277,30 +295,30 @@ const handleAuth = async (e: React.FormEvent) => {
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-[10px] text-gray-400 font-bold mb-1">體重 (kg)</label>
-              <input type="number" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="必填" value={weight} onChange={(e)=>setWeight(e.target.value)} />
+              <input type="number" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="必填" value={weight} onChange={(e) => setWeight(e.target.value)} />
             </div>
             <div>
               <label className="block text-[10px] text-gray-400 font-bold mb-1">腰圍 (cm)</label>
-              <input type="number" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="選填" value={waist} onChange={(e)=>setWaist(e.target.value)} />
+              <input type="number" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="選填" value={waist} onChange={(e) => setWaist(e.target.value)} />
             </div>
             <div>
               <label className="block text-[10px] text-gray-400 font-bold mb-1">體脂 (%)</label>
-              <input type="number" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="選填" value={bodyFat} onChange={(e)=>setBodyFat(e.target.value)} />
+              <input type="number" className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="選填" value={bodyFat} onChange={(e) => setBodyFat(e.target.value)} />
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <h2 className="font-bold text-sm text-gray-700 mb-2 flex items-center"><span className="mr-2">✅</span>今日習慣打卡</h2>
             <label className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl cursor-pointer">
-              <input type="checkbox" checked={waterDone} onChange={(e)=>setWaterDone(e.target.checked)} className="w-5 h-5 text-blue-500 rounded" />
+              <input type="checkbox" checked={waterDone} onChange={(e) => setWaterDone(e.target.checked)} className="w-5 h-5 text-blue-500 rounded" />
               <span className="text-sm text-gray-600 font-medium">喝水 2000cc 💧</span>
             </label>
             <label className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl cursor-pointer">
-              <input type="checkbox" checked={fastingDone} onChange={(e)=>setFastingDone(e.target.checked)} className="w-5 h-5 text-blue-500 rounded" />
+              <input type="checkbox" checked={fastingDone} onChange={(e) => setFastingDone(e.target.checked)} className="w-5 h-5 text-blue-500 rounded" />
               <span className="text-sm text-gray-600 font-medium">168 斷食達標 ⏳</span>
             </label>
             <label className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl cursor-pointer">
-              <input type="checkbox" checked={exerciseDone} onChange={(e)=>setExerciseDone(e.target.checked)} className="w-5 h-5 text-blue-500 rounded" />
+              <input type="checkbox" checked={exerciseDone} onChange={(e) => setExerciseDone(e.target.checked)} className="w-5 h-5 text-blue-500 rounded" />
               <span className="text-sm text-gray-600 font-medium">運動 30 分鐘 🏃‍♀️</span>
             </label>
           </div>
@@ -319,17 +337,17 @@ const handleAuth = async (e: React.FormEvent) => {
             <div key={record.id} className="bg-white p-4 rounded-2xl border flex justify-between items-center relative pr-12 shadow-sm border-gray-100">
               <button onClick={() => handleDelete(record.id)} className="absolute top-3 right-3 text-red-300 hover:text-red-500 text-xs font-bold">刪除</button>
               <div>
-                <p className="text-sm font-bold text-gray-700">{new Date(record.created_at).toLocaleString('zh-TW', { 
-  year: 'numeric', 
-  month: 'numeric', 
-  day: 'numeric', 
-  hour: '2-digit', 
-  minute: '2-digit',
-  hour12: false 
-})}</p>
+                <p className="text-sm font-bold text-gray-700">{new Date(record.created_at).toLocaleString('zh-TW', {
+                  year: 'numeric',
+                  month: 'numeric',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: false
+                })}</p>
                 <p className="text-xs text-gray-500 mt-1">
-                  體重: <span className="text-blue-500 font-bold">{record.weight}</span>kg | 
-                  腰圍: <span className="text-blue-500 font-bold">{record.waist || '--'}</span> | 
+                  體重: <span className="text-blue-500 font-bold">{record.weight}</span>kg |
+                  腰圍: <span className="text-blue-500 font-bold">{record.waist || '--'}</span> |
                   體脂: <span className="text-blue-500 font-bold">{record.body_fat || '--'}</span>%
                 </p>
               </div>
