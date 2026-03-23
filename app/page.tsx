@@ -11,6 +11,11 @@ export default function Home() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
+  // 🌟 新增：忘記密碼 & 重設密碼的專屬狀態
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isSettingNewPassword, setIsSettingNewPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+
   // 紀錄數據
   const [weight, setWeight] = useState("");
   const [waist, setWaist] = useState("");
@@ -33,8 +38,15 @@ export default function Home() {
       setAuthLoading(false);
     };
     checkUser();
+
+    // 🌟 修改：監聽登入狀態時，順便攔截「重設密碼」的事件
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user || null);
+
+      // 當使用者點擊 Email 裡的重設連結回到網頁時，會觸發這個事件
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsSettingNewPassword(true);
+      }
     });
     return () => authListener.subscription.unsubscribe();
   }, []);
@@ -61,17 +73,10 @@ export default function Home() {
       : await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      // 🌟 錯誤訊息中文化翻譯機
       let errorMessage = error.message;
-
-      if (errorMessage === "Invalid login credentials") {
-        errorMessage = "帳號或密碼錯誤，請檢查後再試一次！";
-      } else if (errorMessage === "User already registered") {
-        errorMessage = "這個信箱已經註冊過囉，請直接點擊下方登入！";
-      } else if (errorMessage.includes("Password should be at least 6 characters")) {
-        errorMessage = "密碼太短囉，請至少輸入 6 個字元！";
-      }
-
+      if (errorMessage === "Invalid login credentials") errorMessage = "帳號或密碼錯誤，請檢查後再試一次！";
+      else if (errorMessage === "User already registered") errorMessage = "這個信箱已經註冊過囉，請直接點擊下方登入！";
+      else if (errorMessage.includes("Password should be at least 6 characters")) errorMessage = "密碼太短囉，請至少輸入 6 個字元！";
       alert("操作失敗 😢：" + errorMessage);
     }
   };
@@ -81,19 +86,56 @@ export default function Home() {
     if (error) alert("訪客登入失敗：" + error.message);
   };
 
+  // 🌟 新增：寄出忘記密碼信件
+  const handleSendResetEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) {
+      alert("請輸入您的 Email！");
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin, // 確保重設完會跳回目前的網址
+    });
+
+    if (error) {
+      alert("發送失敗：" + error.message);
+    } else {
+      alert("✅ 重設密碼信已經寄出囉！請去信箱點擊連結。");
+      setIsForgotPassword(false); // 寄出後切換回登入畫面
+    }
+  };
+
+  // 🌟 新增：使用者輸入新密碼並更新
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      alert("密碼太短囉，請至少輸入 6 個字元！");
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+    if (error) {
+      alert("密碼更新失敗：" + error.message);
+    } else {
+      alert("🎉 密碼更新成功！請記住新密碼喔，現在可以直接使用了。");
+      setIsSettingNewPassword(false);
+      setNewPassword("");
+    }
+  };
+
+
   const handleSave = async () => {
     if (!weight) { alert("請輸入體重數字喔！"); return; }
-
-    // 🌟 判斷：如果是訪客，Email 存成 '訪客'，否則存入真實 Email
     const currentEmail = user.is_anonymous ? '訪客' : user.email;
-
     const { error } = await supabase.from('daily_records').insert([{
       weight: parseFloat(weight),
       waist: waist ? parseFloat(waist) : null,
       body_fat: bodyFat ? parseFloat(bodyFat) : null,
       water_done: waterDone, fasting_done: fastingDone, exercise_done: exerciseDone,
       user_id: user.id,
-      user_email: currentEmail // 🌟 新增這一行：把 Email 一起存進資料庫
+      user_email: currentEmail
     }]);
 
     if (!error) {
@@ -111,33 +153,53 @@ export default function Home() {
     if (!error) fetchHistory();
   };
 
-  // 數據處理 (優化版：每天只顯示最新一筆體重)
   const groupedData: Record<string, number> = {};
-
   [...history].reverse().forEach(record => {
-    const dateLabel = new Date(record.created_at).toLocaleDateString('zh-TW', {
-      month: 'numeric',
-      day: 'numeric'
-    });
-    groupedData[dateLabel] = record.weight; // 同一天的紀錄，後面的會自動蓋掉前面的
+    const dateLabel = new Date(record.created_at).toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' });
+    groupedData[dateLabel] = record.weight;
   });
-
-  const chartData = Object.keys(groupedData).map(date => ({
-    date: date,
-    weight: groupedData[date]
-  }));
+  const chartData = Object.keys(groupedData).map(date => ({ date: date, weight: groupedData[date] }));
 
   let currentLoss = history.length >= 2 ? parseFloat((history[history.length - 1].weight - history[0].weight).toFixed(1)) : 0;
   let progressPercent = Math.min(100, Math.max(0, targetGoal > 0 ? (currentLoss / targetGoal) * 100 : 0));
 
   if (authLoading) return <div className="min-h-screen flex items-center justify-center text-gray-400">系統載入中...</div>;
 
+  // === 0. 攔截畫面：重新設定新密碼 ===
+  if (isSettingNewPassword) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 font-sans text-gray-800">
+        <div className="w-full max-w-sm bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden">
+          <div className="h-2 bg-green-500 w-full"></div>
+          <div className="p-8">
+            <h1 className="text-2xl font-bold text-center mb-2 text-gray-800">設定新密碼 🔐</h1>
+            <p className="text-center text-sm text-gray-500 mb-8 leading-relaxed">請輸入您的新密碼，未來請用這組密碼登入喔！</p>
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
+              <div className="space-y-1">
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  className="w-full border-gray-100 bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all"
+                  placeholder="請輸入至少 6 位數新密碼"
+                />
+              </div>
+              <button type="submit" className="w-full bg-green-500 text-white font-bold py-4 rounded-2xl hover:bg-green-600 transition-all shadow-lg mt-2">
+                確認更新密碼
+              </button>
+            </form>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   // === 1. 品牌強化版登入畫面 ===
   if (!user) {
     return (
       <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 font-sans text-gray-800">
 
-        {/* 頂部品牌 Logo */}
         <div className="flex items-center space-x-2 mb-8 opacity-80">
           <div className="bg-blue-500 text-white p-1.5 rounded-lg shadow-sm">📖</div>
           <span className="text-sm font-bold tracking-[0.2em] text-gray-500">
@@ -146,71 +208,104 @@ export default function Home() {
         </div>
 
         <div className="w-full max-w-sm bg-white rounded-[2.5rem] shadow-xl shadow-blue-500/5 border border-gray-100 overflow-hidden">
-
-          {/* 頂部藍色裝飾條 */}
           <div className="h-2 bg-blue-500 w-full"></div>
 
           <div className="p-8">
-            {/* 🌟 優化 1：加入明確的產品類型文字 */}
+            {/* 🌟 修改：根據忘記密碼狀態切換標題 */}
             <h1 className="text-2xl font-bold text-center mb-2 text-gray-800">
-              {isSignUp ? "開啟減重計畫 💪" : "歡迎回來 👋"}
+              {isForgotPassword ? "忘記密碼 🔑" : (isSignUp ? "開啟減重計畫 💪" : "歡迎回來 👋")}
             </h1>
             <p className="text-center text-sm text-gray-500 mb-8 leading-relaxed">
-              {isSignUp ? "加入專屬減重小管家，遇見更好的自己" : "今天也要繼續為減重目標努力喔！"}
+              {isForgotPassword ? "別擔心，輸入 Email 讓我們寄送重設連結給您" : (isSignUp ? "加入專屬減重小管家，遇見更好的自己" : "今天也要繼續為減重目標努力喔！")}
             </p>
 
-            <form onSubmit={handleAuth} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">Email 信箱</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="w-full border-gray-100 bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                  placeholder="your@email.com"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">安全密碼</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="w-full border-gray-100 bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                  placeholder="請輸入密碼"
-                />
-              </div>
-              <button type="submit" className="w-full bg-blue-500 text-white font-bold py-4 rounded-2xl hover:bg-blue-600 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20 mt-2">
-                {isSignUp ? "立即開啟計畫" : "進入減重計畫"}
-              </button>
-            </form>
+            {/* 🌟 修改：如果是「忘記密碼」模式，顯示發送信件的表單 */}
+            {isForgotPassword ? (
+              <form onSubmit={handleSendResetEmail} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">Email 信箱</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="w-full border-gray-100 bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    placeholder="your@email.com"
+                  />
+                </div>
+                <button type="submit" className="w-full bg-gray-800 text-white font-bold py-4 rounded-2xl hover:bg-gray-900 transition-all shadow-lg mt-2">
+                  寄送重設密碼信
+                </button>
+                <button type="button" onClick={() => setIsForgotPassword(false)} className="w-full text-gray-500 text-sm font-bold py-2 hover:text-gray-700">
+                  返回登入
+                </button>
+              </form>
+            ) : (
+              // 原本的登入/註冊表單
+              <form onSubmit={handleAuth} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">Email 信箱</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="w-full border-gray-100 bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    placeholder="your@email.com"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center ml-1">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">安全密碼</label>
+                    {/* 🌟 新增：忘記密碼按鈕 (只在登入模式顯示) */}
+                    {!isSignUp && (
+                      <button type="button" onClick={() => setIsForgotPassword(true)} className="text-[10px] text-blue-500 font-bold hover:underline">
+                        忘記密碼？
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="w-full border-gray-100 bg-gray-50 border p-4 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    placeholder="請輸入密碼"
+                  />
+                </div>
+                <button type="submit" className="w-full bg-blue-500 text-white font-bold py-4 rounded-2xl hover:bg-blue-600 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20 mt-2">
+                  {isSignUp ? "立即開啟計畫" : "進入減重計畫"}
+                </button>
+              </form>
+            )}
 
-            <div className="flex items-center my-8">
-              <div className="flex-1 h-[1px] bg-gray-100"></div>
-              <span className="px-3 text-[10px] text-gray-300 font-bold uppercase tracking-widest">or</span>
-              <div className="flex-1 h-[1px] bg-gray-100"></div>
-            </div>
+            {!isForgotPassword && (
+              <>
+                <div className="flex items-center my-8">
+                  <div className="flex-1 h-[1px] bg-gray-100"></div>
+                  <span className="px-3 text-[10px] text-gray-300 font-bold uppercase tracking-widest">or</span>
+                  <div className="flex-1 h-[1px] bg-gray-100"></div>
+                </div>
 
-            <button
-              onClick={handleGuestLogin}
-              className="w-full bg-white text-gray-600 border border-gray-200 font-bold py-3.5 rounded-2xl hover:bg-gray-50 transition-all flex justify-center items-center space-x-2"
-            >
-              <span>👻</span>
-              <span className="text-sm">免註冊，以訪客身分試玩</span>
-            </button>
+                <button
+                  onClick={handleGuestLogin}
+                  className="w-full bg-white text-gray-600 border border-gray-200 font-bold py-3.5 rounded-2xl hover:bg-gray-50 transition-all flex justify-center items-center space-x-2"
+                >
+                  <span>👻</span>
+                  <span className="text-sm">免註冊，以訪客身分試玩</span>
+                </button>
 
-            <p className="text-center mt-8 text-xs text-gray-400">
-              {isSignUp ? "已經有帳號了？" : "還沒有專屬帳號？"}
-              <button onClick={() => setIsSignUp(!isSignUp)} className="text-blue-500 ml-1 font-bold hover:underline">
-                {isSignUp ? "點此登入" : "點此註冊"}
-              </button>
-            </p>
+                <p className="text-center mt-8 text-xs text-gray-400">
+                  {isSignUp ? "已經有帳號了？" : "還沒有專屬帳號？"}
+                  <button onClick={() => setIsSignUp(!isSignUp)} className="text-blue-500 ml-1 font-bold hover:underline">
+                    {isSignUp ? "點此登入" : "點此註冊"}
+                  </button>
+                </p>
+              </>
+            )}
           </div>
         </div>
 
-        {/* 🌟 優化 2：補足完整的品牌與年份資訊 */}
         <div className="mt-12 text-center space-y-1 opacity-30">
           <p className="text-[10px] font-bold tracking-[0.2em] text-gray-600">
             XiaoBu Studio | © 2026 小步學習
@@ -223,7 +318,7 @@ export default function Home() {
     );
   }
 
-  // === 2. 主打卡畫面 ===
+  // === 2. 主打卡畫面 (維持不變) ===
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col items-center p-4 font-sans text-gray-800 pb-10">
 
